@@ -1,5 +1,8 @@
+beautifulsoup4
+cryptography
 ddddocr
-numexpr
-bs4
-pycryptodome
+Flask
 lxml
+numexpr
+pycryptodome
+requests
