@@ -57,6 +57,68 @@ def disable_email():
 def query_retake_total_paid():
     result = Query.query_retake_paid()
     total_retake_paid = Query.process_total_retake_paid(result)
+    # items是一个列表，示例数据如下
+    '''    {
+      "bmpc": "-1",
+      "date": "二○二六年一月十五日",
+      "dateDigit": "2026年1月15日",
+      "dateDigitSeparator": "2026-1-15",
+      "day": "15",
+      "jfjssj": "2025-10-31 23:59:59",
+      "jfkssj": "2025-10-22 00:00:00",
+      "jfxnm": "2025",
+      "jfxqm": "3",
+      "jgpxzd": "1",
+      "listnav": "false",
+      "localeKey": "zh_CN",
+      "month": "1",
+      "order_amount": "320.00",
+      "order_count": "1",
+      "order_id": "ZZJF202404161557585935",
+      "order_men": "12300060219",
+      "order_name": "高等数学I1",
+      "pageTotal": 0,
+      "pageable": true,
+      "pay_state": "1",
+      "pay_time": "2024-04-16 16:00:53",
+      "queryModel": {
+        "currentPage": 1,
+        "currentResult": 0,
+        "entityOrField": false,
+        "limit": 15,
+        "offset": 0,
+        "pageNo": 0,
+        "pageSize": 15,
+        "showCount": 10,
+        "sorts": [],
+        "totalCount": 0,
+        "totalPage": 0,
+        "totalResult": 0
+      },
+      "rangeable": true,
+      "row_id": "4",
+      "sfqr": "已缴费",
+      "sfzfzzt": "0",
+      "totalResult": "4",
+      "userModel": {
+        "monitor": false,
+        "roleCount": 0,
+        "roleKeys": "",
+        "roleValues": "",
+        "status": 0,
+        "usable": false
+      },
+      "xm": "名字",
+      "xmdm": "200038",
+      "xnm": "2023",
+      "xnmc": "2023-2024",
+      "xqm": "12",
+      "xqmc": "2",
+      "year": "2026",
+      "ywdm": "05",
+      "ywmc": "重修选课费",
+      "zfywsj_ids": "15BA47B5985EAB91E065000000000001"
+    }'''
     return Response.ok(data={'total_retake_paid': total_retake_paid,"items": total_retake_paid})
 
 
@@ -78,4 +140,4 @@ def update():
 @catch_exceptions
 def accumulate_history_credits():
     total, failed, succeeded, total_failed = Query.accumulate_credits()
-    return Response.ok(data={'total': total, 'failed': failed,succeeded: succeeded, total_failed: total_failed})
+    return Response.ok(data={'total': total, 'failed': failed,"succeeded": succeeded, "total_failed": total_failed})
