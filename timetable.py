@@ -18,7 +18,7 @@ import requests
 import common
 
 import config
-from cdutetc.class_timetable.data_messenger import user_login
+from data_messenger import user_login
 from data_messenger import DATA_MESSENGER
 
 
@@ -403,3 +403,4 @@ if __name__ == '__main__':
     app.run()
     time.sleep(0.1)
     input("回车键退出")
+
