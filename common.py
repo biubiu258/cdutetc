@@ -358,8 +358,11 @@ class UserInfoManager:
         self.root_path = os.path.join(real_path(),"user")
         self.lock = threading.Lock()
         self.data_encrypt = DataEncryptUtils()
+
         if not os.path.exists(self.root_path):
             os.mkdir(self.root_path)
+
+        self.init_user_info()
 
     def read(self)->UserInfo|None:
         if not os.path.exists(os.path.join(self.root_path,"user_info")):

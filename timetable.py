@@ -25,11 +25,17 @@ from data_messenger import DATA_MESSENGER
 class GuesserCdutetcAuto:
     def __init__(self):
         self.everyday_class_dict = None
-        self.login()
+        # self.login()
+        self.activity_list = []
         self.headers = config.headers
         self.url = config.url
         self.jw_url = config.jw_url
         self.lock = threading.Lock()
+        self.login_status = False
+
+    def init(self):
+        self.login()
+        self.get_activity_list()
 
     @staticmethod
     def timetable_key_2_chinese(key):
@@ -158,7 +164,7 @@ class GuesserCdutetcAuto:
                 common.ProcessHtmlResponse.get_element(r, ["a"], False)[0],
                 ["onclick"]):
             self.activity_list.append(common.ProcessHtmlResponse.process_js_arguments(i[0]))
-        print(self.activity_list)
+        # print(self.activity_list)
         return True
 
     @common.retry
@@ -259,6 +265,8 @@ class GuesserCdutetcAuto:
             self.everyday_class_dict = class_dict
 
     def get_today_class(self):
+        if self.everyday_class_dict is None:
+            self.refresh_timetable()
         with self.lock:
             if not self.everyday_class_dict:
                 logging.warning("每日课程列表尚未获取或处理")
@@ -293,6 +301,8 @@ class GuesserCdutetcAuto:
         return True, class_now
 
     def get_class_after_days(self, days:int):
+        if self.everyday_class_dict is None:
+            self.refresh_timetable()
         if not self.everyday_class_dict:
             logging.warning("每日课程列表尚未获取或处理")
             return False, None
@@ -302,6 +312,8 @@ class GuesserCdutetcAuto:
         return True, self.everyday_class_dict[today]
 
     def get_str_date_class(self, str_date: str):
+        if self.everyday_class_dict is None:
+            self.refresh_timetable()
         with self.lock:
             if not self.everyday_class_dict:
                 logging.warning("每日课程列表尚未获取或处理")
@@ -324,15 +336,18 @@ class GuesserCdutetcAuto:
             self.main_page_location = result.main_page_location
         return self.login_status
 
+    @common.retry
     def refresh_timetable(self):
+        if not self.login_status:
+            self.init()
         try:
             if not self.get_activity_list():
-                return False
+                raise Exception("活动列表获取失败")
         except Exception as e:
             logging.error(e)
             logging.info("正在尝试重新登录")
             user_login()
-            self.login()
+            self.init()
             if not self.login_status:
                 return False
         if not self.get_xq_year_and_month():
@@ -345,6 +360,8 @@ class GuesserCdutetcAuto:
         return True
 
     def get_everyday_class(self):
+        if self.everyday_class_dict is None:
+            self.refresh_timetable()
         result = {}
         with self.lock:
             for key, value in self.everyday_class_dict.items():

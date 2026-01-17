@@ -8,9 +8,11 @@
 ------------      --------    -----------
 2026/1/16 18:17    1.0         None
 """
-from flask import Flask, request
+import os.path
+
+from flask import Flask, request, send_from_directory
 from data_messenger import USER_INFO_MANAGER, user_login
-from common import Response,catch_exceptions
+from common import Response,catch_exceptions, real_path
 import timetable_bp
 import score_query_bp
 
@@ -18,6 +20,16 @@ import score_query_bp
 app = Flask(__name__)
 app.register_blueprint(timetable_bp.app,url_prefix='/timetable')
 app.register_blueprint(score_query_bp.bq,url_prefix='/score')
+
+
+@app.route('/')
+def index():
+    return send_from_directory(os.path.join(real_path(), 'templates'),'index.html')
+
+
+@app.route("/static/<path:path>")
+def static_(path):
+    return send_from_directory(os.path.join(real_path(), 'static'),path)
 
 
 @app.route('/api/is_has_user_info', methods=['GET'])

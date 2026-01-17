@@ -15,7 +15,6 @@ import requests
 import numexpr
 import encrypt
 import common
-import user_config
 import logging
 import config
 
@@ -97,13 +96,13 @@ class GuesserLogin:
 
     @common.retry
     def login(self) -> bool:
-        if self.username == "用户名" or self.username == "" or self.username is None:
-            logging.error("请先设置用户名与密码！")
-            logging.info("请输入账号(学号)")
-            self.username = input("")
-            logging.info("请输入密码")
-            self.password = input("")
-            # return False
+        # if self.username == "用户名" or self.username == "" or self.username is None:
+        #     logging.error("请先设置用户名与密码！")
+        #     logging.info("请输入账号(学号)")
+        #     self.username = input("")
+        #     logging.info("请输入密码")
+        #     self.password = input("")
+        #     # return False
         logging.info("正在尝试登录,若程序卡死或响应超时,说明学校服务器被关闭(一般在24:00以后就无法访问了)")
         captcha_id, result = self.get_captcha()
         payload = {

@@ -287,8 +287,10 @@ class Query:
         self.cookies = None
         self.this_semester = None
         self.history_manager = HistoryManager()
-        self.worker_thread = threading.Thread(target=self.update_worker, name="Query",daemon=True,args=())
-        self.worker_thread.start()
+        self.is_initialized = False
+        self.init_lock = threading.RLock()
+        # self.worker_thread = threading.Thread(target=self.update_worker, name="Query",daemon=True,args=())
+        # self.worker_thread.start()
 
     def set_cookies(self,cookies=None):
         if cookies:
@@ -309,6 +311,9 @@ class Query:
             logging.info("邮件通知已禁用")
 
     def get_all_history(self)->list[CourseHistoryRecord]:
+        with self.init_lock:
+            if not self.is_initialized:
+                self.init()
         return self.history_manager.get_history()
 
     @staticmethod
@@ -342,6 +347,9 @@ class Query:
 
     @common.retry
     def query_retake_paid(self):
+        with self.init_lock:
+            if not self.is_initialized:
+                self.init()
         url = "https://jwgl.cdutetc.cn/paycenter/paycenter_cxGrjfIndex.html"
         params = {"doType":"query","gnmkdm":""}
         payload = {
@@ -367,9 +375,15 @@ class Query:
         return result
 
     def get_this_semester(self):
+        with self.init_lock:
+            if not self.is_initialized:
+                self.init()
         return self.this_semester
 
     def accumulate_credits(self):
+        with self.init_lock:
+            if not self.is_initialized:
+                self.init()
         return self.history_manager.accumulate_credits()
 
     def update_history_records(self):
@@ -382,6 +396,9 @@ class Query:
         self.this_semester = self.history_manager.get_grade_list_semester(*get_academic_year_and_semester())
 
     def is_new_coming(self):
+        with self.init_lock:
+            if not self.is_initialized:
+                self.init()
         if self.this_semester is None:
             return False
         self.get_grade_info()
@@ -422,3 +439,9 @@ class Query:
         self.get_grade_info()
         self.update_history_records()
         self.update_this_semester()
+
+    def init(self):
+        self.set_cookies()
+        self.run()
+        with self.init_lock:
+            self.is_initialized = True

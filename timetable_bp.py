@@ -15,7 +15,7 @@ from common import catch_exceptions, Response
 
 app = blueprints.Blueprint('timetable', __name__)
 timetable = GuesserCdutetcAuto()
-timetable.run()
+
 fullDateParser = FullDateParser()
 
 

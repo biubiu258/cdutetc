@@ -15,22 +15,19 @@ from data_messenger import DATA_MESSENGER
 
 bq = blueprints.Blueprint('score_query_bp', __name__)
 Query = Query()
-INIT_FLAG = False
 
 
 @bq.route('/init', methods=['GET'])
 @catch_exceptions
 def init():
-    Query.run()
-    global INIT_FLAG
-    INIT_FLAG = True
+    Query.init()
     return Response.ok()
 
 
 @bq.route('/all_score', methods=['GET', 'POST'])
 @catch_exceptions
 def all_score():
-    Response.ok(data=Query.get_all_history())
+    return Response.ok(data=Query.get_all_history())
 
 
 @bq.route('/enable_email', methods=['GET'])
@@ -119,7 +116,7 @@ def query_retake_total_paid():
       "ywmc": "重修选课费",
       "zfywsj_ids": "15BA47B5985EAB91E065000000000001"
     }'''
-    return Response.ok(data={'total_retake_paid': total_retake_paid,"items": total_retake_paid})
+    return Response.ok(data={'total_retake_paid': total_retake_paid,"items": result})
 
 
 @bq.route('/query_this_semester', methods=['GET'])
