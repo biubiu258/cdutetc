@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能课表 - 日历视图</title>
+  <!-- 引入外部资源 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+
+  <!-- Tailwind 配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#165DFF',
+            secondary: '#36CFFB',
+            success: '#4CAF50',
+            warning: '#FF9800',
+            danger: '#F56C6C',
+            info: '#909399',
+            light: '#F5F7FA',
+            dark: '#1D2129',
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          boxShadow: {
+            'card': '0 4px 20px rgba(0, 0, 0, 0.08)',
+            'card-hover': '0 8px 30px rgba(0, 0, 0, 0.12)',
+          }
+        },
+      }
+    }
+  </script>
+
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .calendar-grid {
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+      }
+      .class-card-hover {
+        transform: translateY(-2px);
+      }
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    }
+  </style>
+
+  <style>
+    /* 基础动画定义 */
+    .fade-in {
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .slide-up {
+      animation: slideUp 0.4s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .pulse {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* 加载动画 */
+    .loader {
+      border-top-color: #165DFF;
+      animation: spinner 0.8s linear infinite;
+    }
+    @keyframes spinner {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 日历日期过渡 */
+    .calendar-day {
+      transition: all 0.3s ease;
+    }
+
+    /* 课程卡片渐变背景 */
+    .class-card {
+      background: linear-gradient(135deg, rgba(22, 93, 255, 0.05) 0%, rgba(54, 207, 251, 0.05) 100%);
+      border: 1px solid rgba(22, 93, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .class-card.exam {
+      border-left: 3px solid #F56C6C;
+    }
+
+    .class-card.check {
+      border-left: 3px solid #4CAF50;
+    }
+
+    /* 错误提示动画 */
+    .shake {
+      animation: shake 0.5s ease-in-out;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+  </style>
+</head>
+
+<body class="font-inter bg-gray-50 text-dark min-h-screen flex flex-col">
+  <!-- 顶部导航栏 -->
+  <header class="bg-white shadow-sm sticky top-0 z-50 transition-all duration-300" id="navbar">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fa fa-calendar-check-o text-primary text-2xl"></i>
+        <h1 class="text-xl md:text-2xl font-bold text-primary">智能课表</h1>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <button id="today-btn" class="flex items-center space-x-1 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm hover:bg-primary/20 transition-colors">
+          <i class="fa fa-calendar-day"></i>
+          <span>今日课程</span>
+        </button>
+
+        <button id="refresh-btn" class="flex items-center space-x-1 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm hover:bg-gray-50 transition-colors">
+          <i class="fa fa-refresh"></i>
+          <span>刷新</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <main class="flex-grow container mx-auto px-4 py-6 md:py-8">
+    <!-- 今日课程快捷查看 -->
+    <section id="today-classes" class="mb-8 bg-white rounded-xl shadow-card p-4 md:p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg md:text-xl font-semibold flex items-center">
+          <i class="fa fa-star text-warning mr-2"></i>
+          今日课程
+          <span id="today-date" class="ml-2 text-info text-sm"></span>
+        </h2>
+        <span id="today-count" class="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full"></span>
+      </div>
+
+      <div id="today-classes-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <!-- 今日课程卡片将通过JS动态生成 -->
+        <div class="text-center text-info py-8 col-span-full">
+          <i class="fa fa-spinner fa-spin text-3xl mb-2"></i>
+          <p>正在加载今日课程...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 日历视图 -->
+    <section class="bg-white rounded-xl shadow-card p-4 md:p-6 fade-in" style="animation-delay: 0.1s">
+      <div class="flex flex-col md:flex-row md:items-center justify-between mb-6">
+        <h2 class="text-lg md:text-xl font-semibold mb-3 md:mb-0">
+          <i class="fa fa-calendar text-primary mr-2"></i>
+          课表日历
+        </h2>
+
+        <div class="flex items-center space-x-3">
+          <button id="prev-month" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+            <i class="fa fa-chevron-left text-info"></i>
+          </button>
+
+          <h3 id="current-month" class="text-lg font-medium"></h3>
+
+          <button id="next-month" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+            <i class="fa fa-chevron-right text-info"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 日历头部（星期） -->
+      <div class="grid calendar-grid mb-2">
+        <div class="text-center py-2 font-medium text-info">周日</div>
+        <div class="text-center py-2 font-medium text-info">周一</div>
+        <div class="text-center py-2 font-medium text-info">周二</div>
+        <div class="text-center py-2 font-medium text-info">周三</div>
+        <div class="text-center py-2 font-medium text-info">周四</div>
+        <div class="text-center py-2 font-medium text-info">周五</div>
+        <div class="text-center py-2 font-medium text-info">周六</div>
+      </div>
+
+      <!-- 日历主体 -->
+      <div id="calendar-grid" class="grid calendar-grid gap-2">
+        <!-- 日历日期格子将通过JS动态生成 -->
+        <div class="col-span-full text-center text-info py-16">
+          <i class="fa fa-spinner fa-spin text-3xl mb-2"></i>
+          <p>正在加载课表数据...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 统计信息卡片 -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 fade-in" style="animation-delay: 0.2s">
+      <div class="bg-white rounded-xl shadow-card p-4 flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+          <i class="fa fa-book text-primary text-xl"></i>
+        </div>
+        <div>
+          <p class="text-info text-sm">总课程数</p>
+          <p id="total-classes" class="text-xl font-bold">
+            <i class="fa fa-spinner fa-spin text-sm"></i>
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-card p-4 flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-full bg-danger/10 flex items-center justify-center">
+          <i class="fa fa-pencil-square-o text-danger text-xl"></i>
+        </div>
+        <div>
+          <p class="text-info text-sm">考试课程</p>
+          <p id="exam-classes" class="text-xl font-bold">
+            <i class="fa fa-spinner fa-spin text-sm"></i>
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-card p-4 flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+          <i class="fa fa-check-square-o text-success text-xl"></i>
+        </div>
+        <div>
+          <p class="text-info text-sm">考查课程</p>
+          <p id="check-classes" class="text-xl font-bold">
+            <i class="fa fa-spinner fa-spin text-sm"></i>
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 加载遮罩层（刷新时使用） -->
+  <div id="loading-overlay" class="fixed inset-0 bg-white/80 flex items-center justify-center z-50 hidden">
+    <div class="flex flex-col items-center">
+      <div class="loader w-12 h-12 border-4 border-gray-200 rounded-full mb-4"></div>
+      <p class="text-primary font-medium">正在刷新课表...</p>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <footer class="bg-white border-t border-gray-200 py-4 mt-8">
+    <div class="container mx-auto px-4 text-center text-info text-sm">
+      <p>© 2025 智能课表系统 | 实时同步课程信息</p>
+    </div>
+  </footer>
+
+  <!-- JavaScript 代码 -->
+  <script>
+    // 全局变量
+    let currentDate = new Date();
+    let currentYear = currentDate.getFullYear();
+    let currentMonth = currentDate.getMonth();
+    let timetable = {}; // 存储/timetable接口返回的完整课表数据
+    let todayClasses = []; // 存储/today_class接口返回的今日课程数据
+
+    // DOM 元素
+    const calendarGrid = document.getElementById('calendar-grid');
+    const currentMonthEl = document.getElementById('current-month');
+    const prevMonthBtn = document.getElementById('prev-month');
+    const nextMonthBtn = document.getElementById('next-month');
+    const todayBtn = document.getElementById('today-btn');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const todayDateEl = document.getElementById('today-date');
+    const todayCountEl = document.getElementById('today-count');
+    const todayClassesContainer = document.getElementById('today-classes-container');
+    const totalClassesEl = document.getElementById('total-classes');
+    const examClassesEl = document.getElementById('exam-classes');
+    const checkClassesEl = document.getElementById('check-classes');
+    const navbar = document.getElementById('navbar');
+
+    // 初始化页面
+    document.addEventListener('DOMContentLoaded', () => {
+      // 设置今日日期显示
+      setTodayDateDisplay();
+
+      // 并行请求两个接口加载初始数据
+      Promise.all([
+        fetchTimetable(),
+        fetchTodayClasses()
+      ]).then(() => {
+        // 两个接口都请求成功后渲染页面
+        renderCalendar(currentYear, currentMonth);
+        renderTodayClasses();
+        renderStatistics();
+      }).catch((error) => {
+        // 处理接口请求错误
+        showError('数据加载失败，请稍后重试');
+        console.error('接口请求失败:', error);
+      });
+
+      // 绑定事件监听
+      bindEventListeners();
+    });
+
+    /**
+     * 调用/timetable接口获取完整课表数据
+     */
+    async function fetchTimetable() {
+      try {
+        const response = await fetch('/timetable', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          // 可根据需要添加认证信息
+          // credentials: 'include'
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.result) {
+          timetable = data.result; // 保存完整课表数据
+        } else {
+          throw new Error('课表数据获取失败');
+        }
+      } catch (error) {
+        console.error('/timetable接口请求失败:', error);
+        throw error;
+      }
+    }
+
+    /**
+     * 调用/today_class接口获取今日课程数据
+     */
+    async function fetchTodayClasses() {
+      try {
+        const response = await fetch('/today_class', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          // 可根据需要添加认证信息
+          // credentials: 'include'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          todayClasses = data.result || []; // 保存今日课程数据，默认空数组
+        } else {
+          throw new Error('今日课程数据获取失败');
+        }
+      } catch (error) {
+        console.error('/today_class接口请求失败:', error);
+        throw error;
+      }
+    }
+
+    /**
+     * 调用/refresh_timetable接口刷新课表数据
+     * 该接口耗时，会显示加载动画
+     */
+    async function refreshTimetable() {
+      // 显示加载动画
+      loadingOverlay.classList.remove('hidden');
+      // 禁用刷新按钮防止重复点击
+      refreshBtn.disabled = true;
+      refreshBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+      try {
+        // 先调用刷新接口
+        const refreshResponse = await fetch('/refresh_timetable', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          // 可根据需要添加认证信息
+          // credentials: 'include'
+        });
+
+        const refreshData = await refreshResponse.json();
+
+        if (refreshData.result) {
+          // 刷新成功后，重新获取最新的课表和今日课程数据
+          await Promise.all([
+            fetchTimetable(),
+            fetchTodayClasses()
+          ]);
+
+          // 重新渲染页面
+          renderCalendar(currentYear, currentMonth);
+          renderTodayClasses();
+          renderStatistics();
+
+          // 显示刷新成功提示
+          showToast('课表刷新成功！');
+        } else {
+          throw new Error('课表刷新失败');
+        }
+      } catch (error) {
+        console.error('/refresh_timetable接口请求失败:', error);
+        showError('刷新失败，请稍后重试');
+      } finally {
+        // 隐藏加载动画，恢复按钮状态
+        loadingOverlay.classList.add('hidden');
+        refreshBtn.disabled = false;
+        refreshBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    }
+
+    // 渲染日历
+    function renderCalendar(year, month) {
+      // 清空日历网格
+      calendarGrid.innerHTML = '';
+
+      // 更新当前月份显示
+      const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+      currentMonthEl.textContent = `${year}年${monthNames[month]}`;
+
+      // 获取当月第一天是星期几（0-6，0是星期日）
+      const firstDay = new Date(year, month, 1).getDay();
+
+      // 获取当月的天数
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      // 上个月的最后一天
+      const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+      // 计算需要显示的格子总数（包括上个月和下个月的部分日期）
+      const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+
+      // 填充上个月的日期
+      for (let i = 0; i < firstDay; i++) {
+        const day = daysInPrevMonth - firstDay + i + 1;
+        const dateEl = createDateElement(day, false, false);
+        calendarGrid.appendChild(dateEl);
+      }
+
+      // 填充当月的日期
+      const today = new Date();
+      const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const hasClasses = timetable.hasOwnProperty(dateStr);
+        const isToday = isCurrentMonth && today.getDate() === day;
+
+        const dateEl = createDateElement(day, true, isToday, hasClasses, dateStr);
+        calendarGrid.appendChild(dateEl);
+      }
+
+      // 填充下个月的日期
+      const remainingCells = totalCells - (firstDay + daysInMonth);
+      for (let day = 1; day <= remainingCells; day++) {
+        const dateEl = createDateElement(day, false, false);
+        calendarGrid.appendChild(dateEl);
+      }
+    }
+
+    // 创建日期元素
+    function createDateElement(day, isCurrentMonth, isToday, hasClasses = false, dateStr = '') {
+      const dateEl = document.createElement('div');
+      dateEl.className = `calendar-day min-h-[120px] p-2 border rounded-lg ${isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400'}`;
+
+      // 日期头部
+      const dateHeader = document.createElement('div');
+      dateHeader.className = `flex justify-between items-center mb-2 ${isToday ? 'text-primary font-bold' : ''}`;
+
+      const dayText = document.createElement('span');
+      dayText.textContent = day;
+      dateHeader.appendChild(dayText);
+
+      // 如果有课程，显示课程数量标记
+      if (hasClasses) {
+        const classCount = document.createElement('span');
+        classCount.className = 'bg-primary/10 text-primary text-xs px-1.5 py-0.5 rounded-full';
+        classCount.textContent = timetable[dateStr].length;
+        dateHeader.appendChild(classCount);
+      }
+
+      dateEl.appendChild(dateHeader);
+
+      // 如果是当前月份且有课程，添加课程列表
+      if (isCurrentMonth && hasClasses) {
+        const classesContainer = document.createElement('div');
+        classesContainer.className = 'space-y-1 max-h-[80px] overflow-y-auto scrollbar-hide';
+
+        timetable[dateStr].forEach((cls, index) => {
+          // 只显示前2个课程，其余显示数量
+          if (index < 10) {
+            const classCard = createClassCard(cls);
+            classesContainer.appendChild(classCard);
+          } else if (index === 10) {
+            const moreClasses = document.createElement('div');
+            moreClasses.className = 'text-xs text-info text-center';
+            moreClasses.textContent = `+${timetable[dateStr].length - 2} 更多课程`;
+            classesContainer.appendChild(moreClasses);
+          }
+        });
+
+        dateEl.appendChild(classesContainer);
+
+        // 添加悬停效果
+        dateEl.classList.add('hover:bg-primary/5', 'cursor-pointer');
+      }
+
+      // 今日日期高亮
+      if (isToday) {
+        dateEl.classList.add('border-primary', 'bg-primary/5');
+      }
+
+      return dateEl;
+    }
+
+    // 创建课程卡片
+    function createClassCard(cls) {
+      const classCard = document.createElement('div');
+      const methodClass = cls.method === '考试' ? 'exam' : 'check';
+
+      classCard.className = `class-card ${methodClass} p-1.5 rounded text-xs slide-up`;
+      classCard.style.animationDelay = '0.1s';
+
+      // 课程名称（最多显示8个字符）
+      const className = document.createElement('div');
+      className.className = 'font-medium truncate mb-0.5';
+      className.textContent = cls.name.length > 8 ? cls.name.substring(0, 8) + '...' : cls.name;
+      classCard.appendChild(className);
+
+      // 教师和节次
+      const teacherAndSeq = document.createElement('div');
+      teacherAndSeq.className = 'flex justify-between items-center text-gray-500';
+
+      const teacher = document.createElement('span');
+      teacher.textContent = cls.teacher;
+      teacherAndSeq.appendChild(teacher);
+
+      const sequence = document.createElement('span');
+      sequence.textContent = `第${cls.sequence[0]}-${cls.sequence[cls.sequence.length - 1]}节`;
+      teacherAndSeq.appendChild(sequence);
+
+      classCard.appendChild(teacherAndSeq);
+
+      // 教室
+      const classroom = document.createElement('div');
+      classroom.className = 'text-gray-400';
+      classroom.textContent = cls.classroom;
+      classCard.appendChild(classroom);
+
+      // 悬停效果
+      classCard.classList.add('class-card-hover');
+
+      return classCard;
+    }
+
+    // 渲染今日课程
+    function renderTodayClasses() {
+      if (todayClasses.length === 0) {
+        todayClassesContainer.innerHTML = `
+          <div class="text-center text-info py-8 col-span-full">
+            <i class="fa fa-calendar-o text-3xl mb-2"></i>
+            <p>暂无今日课程</p>
+          </div>
+        `;
+        todayCountEl.textContent = '0 门';
+        return;
+      }
+
+      todayCountEl.textContent = `${todayClasses.length} 门`;
+      todayClassesContainer.innerHTML = '';
+
+      todayClasses.forEach((cls, index) => {
+        const classCard = document.createElement('div');
+        const methodClass = cls.method === '考试' ? 'exam' : 'check';
+
+        classCard.className = `class-card ${methodClass} p-3 rounded slide-up`;
+        classCard.style.animationDelay = `${index * 0.1}s`;
+
+        // 课程名称
+        const className = document.createElement('h3');
+        className.className = 'font-medium text-sm mb-2';
+        className.textContent = cls.name;
+        classCard.appendChild(className);
+
+        // 教师信息
+        const teacher = document.createElement('div');
+        teacher.className = 'flex items-center text-gray-600 text-sm mb-2';
+        teacher.innerHTML = `<i class="fa fa-user-o mr-1"></i> ${cls.teacher}`;
+        classCard.appendChild(teacher);
+
+        // 节次和教室
+        const details = document.createElement('div');
+        details.className = 'flex justify-between items-center text-gray-500 text-xs';
+
+        const sequence = document.createElement('div');
+        sequence.innerHTML = `<i class="fa fa-clock-o mr-1"></i> 第${cls.sequence[0]}-${cls.sequence[cls.sequence.length - 1]}节`;
+
+        const classroom = document.createElement('div');
+        classroom.innerHTML = `<i class="fa fa-map-marker mr-1"></i> ${cls.classroom}`;
+
+        details.appendChild(sequence);
+        details.appendChild(classroom);
+        classCard.appendChild(details);
+
+        // 课程类型标签
+        const methodBadge = document.createElement('div');
+        methodBadge.className = `mt-2 text-xs px-2 py-0.5 rounded-full ${cls.method === '考试' ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`;
+        methodBadge.textContent = cls.method;
+        classCard.appendChild(methodBadge);
+
+        todayClassesContainer.appendChild(classCard);
+      });
+    }
+
+    // 渲染统计信息
+    function renderStatistics() {
+      let total = 0;
+      let examCount = 0;
+      let checkCount = 0;
+
+      // 遍历所有日期的课程计算统计数据
+      Object.values(timetable).forEach(classes => {
+        classes.forEach(cls => {
+          total++;
+          if (cls.method === '考试') {
+            examCount++;
+          } else {
+            checkCount++;
+          }
+        });
+      });
+
+      // 添加数字动画
+      animateValue(totalClassesEl, 0, total, 1000);
+      animateValue(examClassesEl, 0, examCount, 1000);
+      animateValue(checkClassesEl, 0, checkCount, 1000);
+    }
+
+    // 数字动画
+    function animateValue(element, start, end, duration) {
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const value = Math.floor(progress * (end - start) + start);
+        element.textContent = value;
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        }
+      };
+      window.requestAnimationFrame(step);
+    }
+
+    // 设置今日日期显示
+    function setTodayDateDisplay() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth() + 1;
+      const day = today.getDate();
+      const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+      const weekDay = weekDays[today.getDay()];
+
+      todayDateEl.textContent = `${year}年${month}月${day}日 ${weekDay}`;
+    }
+
+    // 绑定事件监听
+    function bindEventListeners() {
+      // 上个月按钮
+      prevMonthBtn.addEventListener('click', () => {
+        currentMonth--;
+        if (currentMonth < 0) {
+          currentMonth = 11;
+          currentYear--;
+        }
+        renderCalendar(currentYear, currentMonth);
+      });
+
+      // 下个月按钮
+      nextMonthBtn.addEventListener('click', () => {
+        currentMonth++;
+        if (currentMonth > 11) {
+          currentMonth = 0;
+          currentYear++;
+        }
+        renderCalendar(currentYear, currentMonth);
+      });
+
+      // 今日按钮
+      todayBtn.addEventListener('click', () => {
+        currentDate = new Date();
+        currentYear = currentDate.getFullYear();
+        currentMonth = currentDate.getMonth();
+        renderCalendar(currentYear, currentMonth);
+
+        // 滚动到今日课程
+        document.getElementById('today-classes').scrollIntoView({
+          behavior: 'smooth'
+        });
+      });
+
+      // 刷新按钮
+      refreshBtn.addEventListener('click', refreshTimetable);
+
+      // 滚动时导航栏效果
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 10) {
+          navbar.classList.add('shadow');
+        } else {
+          navbar.classList.remove('shadow');
+        }
+      });
+    }
+
+    // 显示成功提示
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-4 right-4 bg-primary text-white px-4 py-2 rounded-lg shadow-lg fade-in flex items-center';
+      toast.innerHTML = `<i class="fa fa-check-circle mr-2"></i> ${message}`;
+
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+
+        setTimeout(() => {
+          document.body.removeChild(toast);
+        }, 300);
+      }, 2000);
+    }
+
+    // 显示错误提示
+    function showError(message) {
+      // 创建错误提示元素
+      const errorToast = document.createElement('div');
+      errorToast.className = 'fixed bottom-4 right-4 bg-danger text-white px-4 py-2 rounded-lg shadow-lg fade-in shake flex items-center';
+      errorToast.innerHTML = `<i class="fa fa-exclamation-circle mr-2"></i> ${message}`;
+
+      document.body.appendChild(errorToast);
+
+      // 更新加载状态为错误状态
+      todayClassesContainer.innerHTML = `
+        <div class="text-center text-danger py-8 col-span-full">
+          <i class="fa fa-exclamation-triangle text-3xl mb-2"></i>
+          <p>${message}</p>
+          <button id="retry-btn" class="mt-3 bg-danger/10 text-danger px-3 py-1 rounded text-sm hover:bg-danger/20 transition-colors">
+            重试
+          </button>
+        </div>
+      `;
+
+      calendarGrid.innerHTML = `
+        <div class="col-span-full text-center text-danger py-16">
+          <i class="fa fa-exclamation-triangle text-3xl mb-2"></i>
+          <p>${message}</p>
+          <button id="calendar-retry-btn" class="mt-3 bg-danger/10 text-danger px-3 py-1 rounded text-sm hover:bg-danger/20 transition-colors">
+            重试
+          </button>
+        </div>
+      `;
+
+      // 绑定重试按钮事件
+      document.getElementById('retry-btn')?.addEventListener('click', retryLoadData);
+      document.getElementById('calendar-retry-btn')?.addEventListener('click', retryLoadData);
+
+      // 3秒后自动隐藏错误提示
+      setTimeout(() => {
+        errorToast.style.opacity = '0';
+        errorToast.style.transition = 'opacity 0.3s ease';
+
+        setTimeout(() => {
+          document.body.removeChild(errorToast);
+        }, 300);
+      }, 3000);
+    }
+
+    // 重试加载数据
+    function retryLoadData() {
+      // 恢复加载状态
+      todayClassesContainer.innerHTML = `
+        <div class="text-center text-info py-8 col-span-full">
+          <i class="fa fa-spinner fa-spin text-3xl mb-2"></i>
+          <p>正在重新加载...</p>
+        </div>
+      `;
+
+      calendarGrid.innerHTML = `
+        <div class="col-span-full text-center text-info py-16">
+          <i class="fa fa-spinner fa-spin text-3xl mb-2"></i>
+          <p>正在重新加载课表数据...</p>
+        </div>
+      `;
+
+      // 重新请求数据
+      Promise.all([
+        fetchTimetable(),
+        fetchTodayClasses()
+      ]).then(() => {
+        renderCalendar(currentYear, currentMonth);
+        renderTodayClasses();
+        renderStatistics();
+        showToast('数据加载成功');
+      }).catch((error) => {
+        showError('数据加载失败，请稍后重试');
+        console.error('重试接口请求失败:', error);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -9,9 +9,8 @@
 2026/1/16 18:14    1.0         None
 """
 import threading
-from login import GuesserLogin
+from login import GuesserLogin, LoginResult
 import common
-from cdutetc.class_timetable.login import LoginResult
 USER_INFO_MANAGER = common.UserInfoManager()
 
 
